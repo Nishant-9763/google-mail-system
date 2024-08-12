@@ -4,8 +4,6 @@ const qs = require("qs");
 const ClientModel = require("../models/client.model");
 const CompanyModel = require("../models/company.model");
 
-
-
 // getAccessToken = async () => {
 //  let  companyId= "6669d5e0505bda96774e05d9"
 //   const findClientCred = await getCompanyClients(companyId)
@@ -36,11 +34,18 @@ const CompanyModel = require("../models/company.model");
 //     }
 //   })
 // };
-const getAccessToken = async () => {
-  let companyId = "6669d5e0505bda96774e05d9";
+const getAccessToken = async (req) => {
+  let companyId;
+  if (req.query && req.query.email_id) {
+    const { email_id } = req.query;
+    companyId = email_id;
+  } else {
+    companyId = "6669d5e0505bda96774e05d9";
+  }
+  console.log("req.query=======1==========");
   try {
     const findClientCred = await getCompanyClients(companyId);
-    console.log("findClientCred------------",findClientCred);
+    console.log("findClientCred------------", findClientCred);
     const accessTokenPromises = findClientCred.map(async (client) => {
       const data = qs.stringify({
         client_id: client.client_id,
@@ -104,8 +109,13 @@ const searchGmail = async (searchItem) => {
   }
 };
 
-const readGmailContent = async (messageId,accessToken) => {
-  // const accessToken = await getAccessToken();
+const readGmailContent = async (req, messageId, accessToken) => {
+  console.log("2----------------------");
+  if (!accessToken) {
+    accessToken = await getAccessToken(req);
+  }
+  console.log("accessToken==========", accessToken);
+
   const config = {
     method: "get",
     url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
@@ -152,13 +162,13 @@ const readInboxContent = async (searchText) => {
   return decodedStr;
 };
 
-const readAllMails = async (page = 1, pageSize = 10) => {
+const readAllMails = async (req, page = 1, pageSize = 10) => {
   let allMessages = [];
   let nextPageToken = null;
   let accessTokens;
 
   try {
-    accessTokens = await getAccessToken();
+    accessTokens = await getAccessToken(req);
   } catch (error) {
     console.error("Failed to get access tokens:", error);
     throw error;
@@ -177,8 +187,8 @@ const readAllMails = async (page = 1, pageSize = 10) => {
       try {
         const messages = await listMessages(token, pageToken, pageSize);
         if (messages.messages) {
-          console.log("messages.messages------",messages.messages);
-          
+          console.log("messages.messages------", messages.messages);
+
           for (const message of messages.messages) {
             const emailContent = await readGmailContent(message.id, token);
             allMessages.push(emailContent); // Concatenate or push to allMessages array
@@ -198,7 +208,7 @@ const readAllMails = async (page = 1, pageSize = 10) => {
   return allMessages;
 };
 
-const listMessages = async (accessToken,pageToken = null, maxResults = 10) => {
+const listMessages = async (accessToken, pageToken = null, maxResults = 10) => {
   // const accessToken = await getAccessToken();
   const url = `https://www.googleapis.com/gmail/v1/users/me/messages`;
   const params = {
@@ -368,8 +378,38 @@ const storeCompanyClients = async (req) => {
 };
 
 const getCompanyClients = async (companyId) => {
-  const companyClient = await ClientModel.find({ companyId: companyId }).sort({ createdAt: -1 })
+  // const companyClient = await ClientModel.find({ _id: companyId }).sort({
+  //   createdAt: -1,
+  // });
+  // const companyClients = await ClientModel.find({ companyId: companyId }).sort({
+  //   createdAt: -1,
+  // });
+  // return companyClient || companyClients;
+
+  // Fetch the company client by _id
+  const companyClient = await ClientModel.find({ _id: companyId }).sort({
+    createdAt: -1,
+  });
+
+  // If no client found by _id, fetch clients by companyId
+  if (!companyClient || companyClient.length === 0) {
+    const companyClients = await ClientModel.find({
+      companyId: companyId,
+    }).sort({
+      createdAt: -1,
+    });
+    return companyClients;
+  }
+
   return companyClient;
+};
+
+const getemails = async (req) => {
+  const companyClients = await ClientModel.find()
+    .sort({ createdAt: -1 })
+    .select({ email: 1 });
+  const emails = companyClients.filter((client) => client.email); // Filter out entries without emails
+  return emails;
 };
 
 // }
@@ -388,4 +428,5 @@ module.exports = {
   storeCompany,
   storeCompanyClients,
   getCompanyClients,
+  getemails,
 };

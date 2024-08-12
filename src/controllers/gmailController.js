@@ -22,7 +22,7 @@ exports.readInboxContent = async (req, res) => {
 
 exports.readAllMails = async (req, res) => {
   try {
-    const allMails = await gmailService.readAllMails(req.query.page, req.query.pageSize);
+    const allMails = await gmailService.readAllMails(req,req.query.page, req.query.pageSize);
     // console.log("allMails------------",allMails);  
     // const emails = [];
       // for (const message of allMails) {
@@ -44,7 +44,12 @@ exports.readAllMails = async (req, res) => {
       //   }
       //   return newObj;
       // });
+      // console.log("allMails--------",allMails[0]);
+      // res.json(allMails[0]);
+      // return res.json(allMails[0]);
+
       const newObject = allMails.map(mail => {
+        // console.log("mail====================>",mail)
         const newObj = {
           id: mail.id,
           threadId: mail.threadId,
@@ -56,6 +61,9 @@ exports.readAllMails = async (req, res) => {
         // Loop through headers to find and extract specific ones
         mail.payload.headers.forEach(header => {
           switch (header.name) {
+            case 'Delivered-To':
+              newObj.headers.to = header.value;
+              break;
             case 'From':
               newObj.headers.from = header.value;
               break;
@@ -82,7 +90,9 @@ exports.readAllMails = async (req, res) => {
 
 exports.readSingleMails = async (req, res) => {
   try {
-    const singleMails = await gmailService.readGmailContent(req.params.messageId);
+    console.log("6669d5e0505bda96774e05d9----------1---");
+    const singleMails = await gmailService.readGmailContent(req,req.params.messageId);
+    
     res.json(singleMails);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -138,6 +148,15 @@ exports.storeCompanyClients = async (req, res) => {
 exports.getCompanyClients = async (req, res) => {
   try {
     const response = await gmailService.getCompanyClients(req);
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getemails = async (req, res) => {
+  try {
+    const response = await gmailService.getemails(req);
     res.json(response);
   } catch (error) {
     res.status(500).json({ error: error.message });

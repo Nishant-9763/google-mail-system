@@ -7,6 +7,10 @@ const clientSchema = new mongoose.Schema(
       ref: "Company",
       required: true,
     },
+    email: {
+      type: String,
+      unique: true,
+    },
     client_id: String,
     client_secret: String,
     refresh_token: String,

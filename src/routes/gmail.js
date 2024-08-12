@@ -12,4 +12,6 @@ router.get("/labels", gmailController.getLabels);
 router.post("/company", gmailController.storeCompany);
 router.post("/company-client", gmailController.storeCompanyClients);
 router.get("/company-client/:id", gmailController.getCompanyClients);
+router.get("/get-emails", gmailController.getemails);
+
 module.exports = router;
