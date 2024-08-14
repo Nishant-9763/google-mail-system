@@ -42,7 +42,7 @@ const getAccessToken = async (req) => {
   } else {
     companyId = "6669d5e0505bda96774e05d9";
   }
-  console.log("req.query=======1==========");
+  console.log("req.query=======1==========",companyId);
   try {
     const findClientCred = await getCompanyClients(companyId);
     console.log("findClientCred------------", findClientCred);
@@ -127,7 +127,7 @@ const readGmailContent = async (req, messageId, accessToken) => {
     const response = await axios(config);
     return response.data;
   } catch (error) {
-    console.error("Error reading Gmail content: ", error);
+    console.error("Error reading Gmail content: ", error.message);
     throw error;
   }
 
@@ -190,7 +190,7 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
           console.log("messages.messages------", messages.messages);
 
           for (const message of messages.messages) {
-            const emailContent = await readGmailContent(message.id, token);
+            const emailContent = await readGmailContent(null,message.id, token);
             allMessages.push(emailContent); // Concatenate or push to allMessages array
           }
           // const emailContent = await  readGmailContent(messages.messages[0].id,token)
@@ -230,7 +230,7 @@ const listMessages = async (accessToken, pageToken = null, maxResults = 10) => {
     const response = await axios(config);
     return response.data;
   } catch (error) {
-    console.error("Error listing messages: ", error);
+    console.error("Error listing messages: ", error.message);
     throw error;
   }
 };
@@ -390,6 +390,7 @@ const getCompanyClients = async (companyId) => {
   const companyClient = await ClientModel.find({ _id: companyId }).sort({
     createdAt: -1,
   });
+console.log("companyClient=============",companyClient);
 
   // If no client found by _id, fetch clients by companyId
   if (!companyClient || companyClient.length === 0) {
@@ -398,6 +399,8 @@ const getCompanyClients = async (companyId) => {
     }).sort({
       createdAt: -1,
     });
+    console.log("companyClients===234=========",companyClients);
+    
     return companyClients;
   }
 
