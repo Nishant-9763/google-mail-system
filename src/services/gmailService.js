@@ -36,13 +36,13 @@ const CompanyModel = require("../models/company.model");
 // };
 const getAccessToken = async (req) => {
   let companyId;
-  if (req.query && req.query.email_id) {
+  if (req && req.query && req.query.email_id) {
     const { email_id } = req.query;
     companyId = email_id;
   } else {
     companyId = "6669d5e0505bda96774e05d9";
   }
-  console.log("req.query=======1==========",companyId);
+  console.log("req.query=======1==========", companyId);
   try {
     const findClientCred = await getCompanyClients(companyId);
     console.log("findClientCred------------", findClientCred);
@@ -65,6 +65,8 @@ const getAccessToken = async (req) => {
 
       try {
         const response = await axios(config);
+        console.log("response.data=============",response.data);
+        
         return response.data.access_token;
       } catch (error) {
         console.error(
@@ -89,6 +91,7 @@ const getAccessToken = async (req) => {
 
 const searchGmail = async (searchItem) => {
   const accessToken = await getAccessToken();
+  console.log("hiiiiiii-----------------2");
   console.log("accessToken-----------", accessToken);
   const config = {
     method: "get",
@@ -100,8 +103,8 @@ const searchGmail = async (searchItem) => {
 
   try {
     const response = await axios(config);
-    console.log("response-----------", response);
-    const threadId = response.data.messages[0].id;
+    console.log("response-----------", response.data);
+    const threadId = response.data; //response.data.messages[0].id;
     return threadId;
   } catch (error) {
     console.error("Error searching Gmail: ", error.message);
@@ -155,8 +158,10 @@ const readGmailContent = async (req, messageId, accessToken) => {
 };
 
 const readInboxContent = async (searchText) => {
-  const threadId = await this.searchGmail(searchText);
-  const message = await this.readGmailContent(threadId);
+  const threadId = await searchGmail(searchText);
+  console.log("threadId===============", threadId);
+
+  const message = await readGmailContent(threadId);
   const encodedMessage = message.payload.parts[0].body.data;
   const decodedStr = Buffer.from(encodedMessage, "base64").toString("ascii");
   return decodedStr;
@@ -190,7 +195,11 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
           console.log("messages.messages------", messages.messages);
 
           for (const message of messages.messages) {
-            const emailContent = await readGmailContent(null,message.id, token);
+            const emailContent = await readGmailContent(
+              null,
+              message.id,
+              token
+            );
             allMessages.push(emailContent); // Concatenate or push to allMessages array
           }
           // const emailContent = await  readGmailContent(messages.messages[0].id,token)
@@ -238,11 +247,23 @@ const listMessages = async (accessToken, pageToken = null, maxResults = 10) => {
 const sendReply = async (req) => {
   const { threadId, message, to, subject, from } = req.body;
   const accessToken = await getAccessToken();
+  console.log("accessToken===============", accessToken);
+
+  // const data =
+  //   `To: ${to}\n` +
+  //   `Subject: ${subject}\n` +
+  //   `Content-Type: text/plain; charset=utf-8\n` +
+  //   `From: ${from}\n` +
+  //   `${message}`;
+
   const data =
     `To: ${to}\n` +
     `Subject: ${subject}\n` +
-    `Content-Type: text/plain; charset=utf-8\n` +
+    `Content-Type: text/plain; charset=utf-8\n` + // Change to text/html if sending HTML
     `From: ${from}\n` +
+    // `In-Reply-To: <${req.body.inReplyTo}>\n` + // Optional: Add In-Reply-To header if replying
+    // `References: <${req.body.references}>\n` + // Optional: Add References header if needed
+    `\n` + // Add a newline before the message body
     `${message}`;
 
   const encodedMessage = Buffer.from(data)
@@ -378,19 +399,11 @@ const storeCompanyClients = async (req) => {
 };
 
 const getCompanyClients = async (companyId) => {
-  // const companyClient = await ClientModel.find({ _id: companyId }).sort({
-  //   createdAt: -1,
-  // });
-  // const companyClients = await ClientModel.find({ companyId: companyId }).sort({
-  //   createdAt: -1,
-  // });
-  // return companyClient || companyClients;
-
-  // Fetch the company client by _id
+  console.log("hiiiiiii");
   const companyClient = await ClientModel.find({ _id: companyId }).sort({
     createdAt: -1,
   });
-console.log("companyClient=============",companyClient);
+  console.log("companyClient=============", companyClient);
 
   // If no client found by _id, fetch clients by companyId
   if (!companyClient || companyClient.length === 0) {
@@ -399,8 +412,8 @@ console.log("companyClient=============",companyClient);
     }).sort({
       createdAt: -1,
     });
-    console.log("companyClients===234=========",companyClients);
-    
+    console.log("companyClients===234=========", companyClients);
+
     return companyClients;
   }
 
@@ -415,7 +428,166 @@ const getemails = async (req) => {
   return emails;
 };
 
-// }
+const deleteEmails = async (req) => {
+  const messageIds = req.body.messageIds; // Expecting an array of message IDs
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    throw new Error("No message IDs provided or messageIds is not an array.");
+  }
+  const accessToken = await getAccessToken();
+
+  const urlBase = `https://gmail.googleapis.com/gmail/v1/users/me/messages`;
+
+  const requests = messageIds.map((messageId) => {
+    const url = `${urlBase}/${messageId}`;
+
+    const requestBody = {
+      // removeLabelIds: ["INBOX"], // Optionally remove "INBOX"
+      addLabelIds: ["UNREAD"], // Mark as "UNREAD"
+    };
+
+    const config = {
+      method: "delete",
+      url: url,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      data: requestBody,
+    };
+
+    return axios(config)
+      .then(() => {
+        console.log(
+          `Email with ID ${messageId} marked as unread successfully.`
+        );
+      })
+      .catch((error) => {
+        console.error(
+          `Error marking email with ID ${messageId} as unread:`,
+          error.message
+        );
+        // Optionally, you could handle the error here, like logging it or storing the failed IDs
+      });
+  });
+
+  // Execute all requests in parallel
+  await Promise.all(requests);
+
+  return true; // Return true if all operations were successful
+};
+
+const markUnreadEmails = async (req) => {
+  const messageIds = req.body.messageIds; // Expecting an array of message IDs
+
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    throw new Error("No message IDs provided or messageIds is not an array.");
+  }
+  const accessToken = await getAccessToken();
+
+  const urlBase = `https://gmail.googleapis.com/gmail/v1/users/me/messages`;
+
+  const requests = messageIds.map((messageId) => {
+    const url = `${urlBase}/${messageId}/modify`;
+
+    const requestBody = {
+      // removeLabelIds: ["INBOX"], // Optionally remove "INBOX"
+      addLabelIds: ["UNREAD"], // Mark as "UNREAD"
+    };
+
+    const config = {
+      method: "post",
+      url: url,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      data: requestBody,
+    };
+
+    return axios(config)
+      .then(() => {
+        console.log(
+          `Email with ID ${messageId} marked as unread successfully.`
+        );
+      })
+      .catch((error) => {
+        console.error(
+          `Error marking email with ID ${messageId} as unread:`,
+          error.message
+        );
+        // Optionally, you could handle the error here, like logging it or storing the failed IDs
+      });
+  });
+
+  // Execute all requests in parallel
+  await Promise.all(requests);
+
+  return true; // Return true if all operations were successful
+};
+
+const forwardMessage = async (req) => {
+  const { messageId, to, subject, from } = req.body;
+  const accessToken = await getAccessToken();
+  console.log("accessToken===============", accessToken);
+
+  // Fetch the original message content
+  const originalMessageResponse = await axios.get(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const originalMessage = originalMessageResponse.data;
+  console.log("originalMessage=",originalMessage);
+  
+  const originalMessageContent = originalMessage.payload.body.data;
+  const decodedOriginalMessage = Buffer.from(originalMessageContent, 'base64').toString('ascii');
+
+  // Prepare the forwarded message
+  const data =
+    `To: ${to}\n` +
+    `Subject: Fwd: ${subject}\n` +
+    `Content-Type: text/plain; charset=utf-8\n` +
+    `From: ${from}\n` +
+    `\n` +
+    `Forwarded message:\n\n` +
+    `${decodedOriginalMessage}`;
+
+  console.log("data===============", data);
+
+  const encodedMessage = Buffer.from(data)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const url = `https://www.googleapis.com/gmail/v1/users/me/messages/send`;
+  const requestBody = {
+    raw: encodedMessage,
+  };
+
+  const config = {
+    method: "post",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: requestBody,
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    console.error("Error forwarding message: ", error.message);
+    throw error;
+  }
+};
+
 
 // module.exports = new GmailService();
 module.exports = {
@@ -432,4 +604,70 @@ module.exports = {
   storeCompanyClients,
   getCompanyClients,
   getemails,
+  deleteEmails,
+  markUnreadEmails,
+  forwardMessage
 };
+
+// const axios = require("axios");
+// const qs = require("qs");
+// const { getTokenFromDB, saveTokenToDB } = require("./tokenStorage"); // Your DB functions
+
+// const getAccessToken = async (companyId) => {
+//   // Check if there's a valid token in the database
+//   let tokenData = await getTokenFromDB(companyId);
+
+//   // If token exists and is still valid, return it
+//   if (tokenData && tokenData.expires_at > Date.now()) {
+//     console.log("Using cached token");
+//     return tokenData.access_token;
+//   }
+
+//   // Otherwise, generate a new token
+//   const findClientCred = await getCompanyClients(companyId);
+//   const client = findClientCred[0]; // Assuming one client for simplicity
+
+//   const data = qs.stringify({
+//     client_id: client.client_id,
+//     client_secret: client.client_secret,
+//     refresh_token: client.refresh_token,
+//     grant_type: "refresh_token",
+//   });
+
+//   const config = {
+//     method: "post",
+//     url: "https://oauth2.googleapis.com/token",
+//     headers: {
+//       "Content-Type": "application/x-www-form-urlencoded",
+//     },
+//     data: data,
+//   };
+
+//   try {
+//     const response = await axios(config);
+//     const accessToken = response.data.access_token;
+//     const expiresIn = response.data.expires_in * 1000; // Convert to milliseconds
+
+//     // Calculate the expiration time
+//     const expiresAt = Date.now() + expiresIn;
+
+//     // Save the token and expiration time to the database
+//     await saveTokenToDB(companyId, accessToken, expiresAt);
+
+//     return accessToken;
+//   } catch (error) {
+//     console.error("Error getting access token: ", error.message);
+//     throw error;
+//   }
+// };
+
+// // Example function to get the token from the database
+// async function getTokenFromDB(companyId) {
+//   // Fetch the token from your database
+//   // Return an object like { access_token: '...', expires_at: 1234567890 }
+// }
+
+// // Example function to save the token to the database
+// async function saveTokenToDB(companyId, accessToken, expiresAt) {
+//   // Save the token and its expiration time to your database
+// }

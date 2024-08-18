@@ -13,5 +13,8 @@ router.post("/company", gmailController.storeCompany);
 router.post("/company-client", gmailController.storeCompanyClients);
 router.get("/company-client/:id", gmailController.getCompanyClients);
 router.get("/get-emails", gmailController.getemails);
+router.post("/delete-emails", gmailController.deleteEmails);
+router.post("/mark-unread-emails", gmailController.markUnreadEmails);
+router.post("/forward-emails", gmailController.forwardMessage);
 
 module.exports = router;

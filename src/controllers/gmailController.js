@@ -3,6 +3,7 @@ const gmailService = require("../services/gmailService");
 exports.searchGmail = async (req, res) => {
   const { searchItem } = req.params;
   try {
+    console.log("hiiiiiii-----------1");
     const threadId = await gmailService.searchGmail(searchItem);
     res.json({ threadId });
   } catch (error) {
@@ -157,6 +158,33 @@ exports.getCompanyClients = async (req, res) => {
 exports.getemails = async (req, res) => {
   try {
     const response = await gmailService.getemails(req);
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteEmails = async (req, res) => {
+  try {
+    const response = await gmailService.deleteEmails(req);
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.markUnreadEmails = async (req, res) => {
+  try {
+    const response = await gmailService.markUnreadEmails(req);
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.forwardMessage = async (req, res) => {
+  try {
+    const response = await gmailService.forwardMessage(req);
     res.json(response);
   } catch (error) {
     res.status(500).json({ error: error.message });
