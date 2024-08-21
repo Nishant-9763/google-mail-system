@@ -3,6 +3,80 @@ const qs = require("qs");
 // const nodemailer = require("nodemailer");
 const ClientModel = require("../models/client.model");
 const CompanyModel = require("../models/company.model");
+const SessionModel = require("../models/session.model");
+
+// const qs = require("qs");
+// const { getTokenFromDB, saveTokenToDB } = require("./tokenStorage"); // Your DB functions
+
+const getAccessToken = async (emailId) => {
+  let tokenData = await getTokenFromDB(emailId);
+  if (tokenData && tokenData.expiresAt > Date.now()) {
+    return tokenData.accessToken;
+  }
+  const findClientCred = await ClientModel.findOne({ _id: emailId });
+
+  const data = qs.stringify({
+    client_id: findClientCred.client_id,
+    client_secret: findClientCred.client_secret,
+    refresh_token: findClientCred.refresh_token,
+    grant_type: "refresh_token",
+  });
+
+  const config = {
+    method: "post",
+    url: "https://oauth2.googleapis.com/token",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    data: data,
+  };
+
+  try {
+    const response = await axios(config);
+    const accessToken = response.data.access_token;
+    const expiresIn = response.data.expires_in * 1000; // Convert to milliseconds
+
+    // Calculate the expiration time
+    const expiresAt = Date.now() + expiresIn;
+
+    // Save the token and expiration time to the database
+    await saveTokenToDB(emailId, accessToken, expiresAt);
+
+    return accessToken;
+  } catch (error) {
+    console.error("Error getting access token: ", error.message);
+    throw error.message;
+  }
+};
+
+// Example function to get the token from the database
+async function getTokenFromDB(emailId) {
+  const findSession = await SessionModel.findOne({ emailId: emailId });
+  if (!findSession) {
+    return null;
+  }
+  return findSession;
+}
+
+// Example function to save the token to the database
+async function saveTokenToDB(emailId, accessToken, expiresAt) {
+  let createSession;
+  const findSession = await SessionModel.findOne({ emailId: emailId });
+  if (findSession) {
+    createSession = await SessionModel.findOneAndUpdate(
+      { emailId: emailId },
+      { accessToken: accessToken, expiresAt: expiresAt },
+      { new: true }
+    );
+  } else {
+    createSession = await SessionModel.create({
+      emailId: emailId,
+      accessToken: accessToken,
+      expiresAt: expiresAt,
+    });
+  }
+  return createSession;
+}
 
 // getAccessToken = async () => {
 //  let  companyId= "6669d5e0505bda96774e05d9"
@@ -34,7 +108,8 @@ const CompanyModel = require("../models/company.model");
 //     }
 //   })
 // };
-const getAccessToken = async (req) => {
+
+const getAccessTokens = async (req) => {
   let companyId;
   if (req && req.query && req.query.email_id) {
     const { email_id } = req.query;
@@ -65,8 +140,8 @@ const getAccessToken = async (req) => {
 
       try {
         const response = await axios(config);
-        console.log("response.data=============",response.data);
-        
+        console.log("response.data=============", response.data);
+
         return response.data.access_token;
       } catch (error) {
         console.error(
@@ -113,12 +188,9 @@ const searchGmail = async (searchItem) => {
 };
 
 const readGmailContent = async (req, messageId, accessToken) => {
-  console.log("2----------------------");
   if (!accessToken) {
-    accessToken = await getAccessToken(req);
+    accessToken = await getAccessToken(req.params.emailId);
   }
-  console.log("accessToken==========", accessToken);
-
   const config = {
     method: "get",
     url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
@@ -133,28 +205,6 @@ const readGmailContent = async (req, messageId, accessToken) => {
     console.error("Error reading Gmail content: ", error.message);
     throw error;
   }
-
-  // try {
-  //   // const accessTokens = await getAccessToken(); // Get access tokens
-  //   const emailContents = []; // Array to store email contents
-
-  //   for (const accessToken of accessTokens) {
-  //     const config = {
-  //       method: "get",
-  //       url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
-  //       headers: {
-  //         Authorization: `Bearer ${accessToken}`, // Include access token in request headers
-  //       },
-  //     };
-  //     const response = await axios(config); // Make request using axios
-  //     emailContents.push(response.data); // Add email content to array
-  //   }
-
-  //   return emailContents; // Return array of email contents
-  // } catch (error) {
-  //   console.error("Error reading Gmail content:", error);
-  //   throw error; // Rethrow error to propagate it up the call stack
-  // }
 };
 
 const readInboxContent = async (searchText) => {
@@ -173,47 +223,36 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
   let accessTokens;
 
   try {
-    accessTokens = await getAccessToken(req);
+    accessTokens = await getAccessToken(req.params.emailId);
   } catch (error) {
     console.error("Failed to get access tokens:", error);
     throw error;
   }
-
-  // do {
-  //   const messages = await listMessages(nextPageToken, pageSize);
-  //   allMessages = allMessages.concat(messages.messages);
-  //   nextPageToken = messages.nextPageToken;
-  //   page--;
-  // } while (nextPageToken && page > 0);
-  for (const token of accessTokens) {
-    let pageToken = null;
-    let currentPage = page;
-    do {
-      try {
-        const messages = await listMessages(token, pageToken, pageSize);
-        if (messages.messages) {
-          console.log("messages.messages------", messages.messages);
-
-          for (const message of messages.messages) {
-            const emailContent = await readGmailContent(
-              null,
-              message.id,
-              token
-            );
-            allMessages.push(emailContent); // Concatenate or push to allMessages array
-          }
-          // const emailContent = await  readGmailContent(messages.messages[0].id,token)
-          // allMessages = allMessages.concat(emailContent);
+  let pageToken = null;
+  let currentPage = page;
+  do {
+    try {
+      const messages = await listMessages(accessTokens, pageToken, pageSize);
+      if (messages.messages) {
+        for (const message of messages.messages) {
+          const emailContent = await readGmailContent(
+            null,
+            message.id,
+            accessTokens
+          );
+          allMessages.push(emailContent); // Concatenate or push to allMessages array
         }
-        pageToken = messages.nextPageToken;
-        currentPage--;
-      } catch (error) {
-        console.error(`Error fetching messages with token ${token}:`, error);
-        // Continue with next token if error occurs
-        break;
       }
-    } while (pageToken && currentPage > 0);
-  }
+      pageToken = messages.nextPageToken;
+      currentPage--;
+    } catch (error) {
+      console.error(
+        `Error fetching messages with token ${accessTokens}:`,
+        error
+      );
+      break;
+    }
+  } while (pageToken && currentPage > 0);
   return allMessages;
 };
 
@@ -246,9 +285,7 @@ const listMessages = async (accessToken, pageToken = null, maxResults = 10) => {
 
 const sendReply = async (req) => {
   const { threadId, message, to, subject, from } = req.body;
-  const accessToken = await getAccessToken();
-  console.log("accessToken===============", accessToken);
-
+  const accessToken = await getAccessToken(req.params.emailId);
   // const data =
   //   `To: ${to}\n` +
   //   `Subject: ${subject}\n` +
@@ -258,7 +295,9 @@ const sendReply = async (req) => {
 
   const data =
     `To: ${to}\n` +
-    `Subject: ${subject}\n` +
+    `Cc: ${cc}\n` +
+    `Bcc: ${bcc}\n` +
+    `Subject:  Re: ${subject}\n` +
     `Content-Type: text/plain; charset=utf-8\n` + // Change to text/html if sending HTML
     `From: ${from}\n` +
     // `In-Reply-To: <${req.body.inReplyTo}>\n` + // Optional: Add In-Reply-To header if replying
@@ -434,7 +473,7 @@ const deleteEmails = async (req) => {
   if (!Array.isArray(messageIds) || messageIds.length === 0) {
     throw new Error("No message IDs provided or messageIds is not an array.");
   }
-  const accessToken = await getAccessToken();
+  const accessToken = await getAccessToken(req.params.emailId);
 
   const urlBase = `https://gmail.googleapis.com/gmail/v1/users/me/messages`;
 
@@ -482,17 +521,17 @@ const markUnreadEmails = async (req) => {
   if (!Array.isArray(messageIds) || messageIds.length === 0) {
     throw new Error("No message IDs provided or messageIds is not an array.");
   }
-  const accessToken = await getAccessToken();
+  const accessToken = await getAccessToken(req.params.emailId);
 
   const urlBase = `https://gmail.googleapis.com/gmail/v1/users/me/messages`;
 
   const requests = messageIds.map((messageId) => {
     const url = `${urlBase}/${messageId}/modify`;
 
-    const requestBody = {
-      // removeLabelIds: ["INBOX"], // Optionally remove "INBOX"
-      addLabelIds: ["UNREAD"], // Mark as "UNREAD"
-    };
+    const requestBody =
+      req.body.markAs === "unread"
+        ? { addLabelIds: ["UNREAD"] }
+        : { removeLabelIds: ["UNREAD"] };
 
     const config = {
       method: "post",
@@ -527,9 +566,7 @@ const markUnreadEmails = async (req) => {
 
 const forwardMessage = async (req) => {
   const { messageId, to, subject, from } = req.body;
-  const accessToken = await getAccessToken();
-  console.log("accessToken===============", accessToken);
-
+  const accessToken = await getAccessToken(req.params.emailId);
   // Fetch the original message content
   const originalMessageResponse = await axios.get(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
@@ -541,10 +578,13 @@ const forwardMessage = async (req) => {
   );
 
   const originalMessage = originalMessageResponse.data;
-  console.log("originalMessage=",originalMessage);
-  
+  console.log("originalMessage=", originalMessage);
+
   const originalMessageContent = originalMessage.payload.body.data;
-  const decodedOriginalMessage = Buffer.from(originalMessageContent, 'base64').toString('ascii');
+  const decodedOriginalMessage = Buffer.from(
+    originalMessageContent,
+    "base64"
+  ).toString("ascii");
 
   // Prepare the forwarded message
   const data =
@@ -555,8 +595,6 @@ const forwardMessage = async (req) => {
     `\n` +
     `Forwarded message:\n\n` +
     `${decodedOriginalMessage}`;
-
-  console.log("data===============", data);
 
   const encodedMessage = Buffer.from(data)
     .toString("base64")
@@ -588,10 +626,9 @@ const forwardMessage = async (req) => {
   }
 };
 
-
 // module.exports = new GmailService();
 module.exports = {
-  getAccessToken,
+  // getAccessToken,
   searchGmail,
   readAllMails,
   listMessages,
@@ -606,7 +643,7 @@ module.exports = {
   getemails,
   deleteEmails,
   markUnreadEmails,
-  forwardMessage
+  forwardMessage,
 };
 
 // const axios = require("axios");
