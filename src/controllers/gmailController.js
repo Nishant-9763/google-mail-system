@@ -52,7 +52,7 @@ exports.readAllMails = async (req, res) => {
     // console.log("allMails--------",allMails[0]);
     // res.json(allMails[0]);
     // return res.json(allMails[0]);
-// ===========================================================================================
+    // ===========================================================================================
     // const newObject = allMails.messages.map((mail) => {
     //   // console.log("mail====================>",mail)
     //   const newObj = {
@@ -209,6 +209,24 @@ exports.markUnreadEmails = async (req, res) => {
 exports.forwardMessage = async (req, res) => {
   try {
     const response = await gmailService.forwardMessage(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateEmails = async (req, res) => {
+  try {
+    const response = await gmailService.updateEmails(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteLocalEmail = async (req, res) => {
+  try {
+    const response = await gmailService.deleteLocalEmail(req);
     res.json({ data: response });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -9,6 +9,8 @@ router.post("/:emailId/reply-emails", gmailController.sendReply);
 router.post("/:emailId/forward-emails", gmailController.forwardMessage);
 router.post("/:emailId/delete-emails", gmailController.deleteEmails);
 router.post("/:emailId/mark-read-unread-emails", gmailController.markUnreadEmails);
+router.put("/:emailId/update-emails", gmailController.updateEmails);
+router.delete("/delete-emails", gmailController.deleteLocalEmail);
 //-------------------------------work in progress ----------------------------------------------------------
 router.get("/search/:searchItem", gmailController.searchGmail);
 router.get("/read/:searchText", gmailController.readInboxContent);

@@ -14,6 +14,7 @@ const clientSchema = new mongoose.Schema(
     client_id: String,
     client_secret: String,
     refresh_token: String,
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
