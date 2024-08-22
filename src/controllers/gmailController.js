@@ -52,42 +52,42 @@ exports.readAllMails = async (req, res) => {
     // console.log("allMails--------",allMails[0]);
     // res.json(allMails[0]);
     // return res.json(allMails[0]);
+// ===========================================================================================
+    // const newObject = allMails.messages.map((mail) => {
+    //   // console.log("mail====================>",mail)
+    //   const newObj = {
+    //     id: mail.id,
+    //     threadId: mail.threadId,
+    //     labelIds: mail.labelIds,
+    //     snippet: mail.snippet,
+    //     headers: {},
+    //   };
 
-    const newObject = allMails.map((mail) => {
-      // console.log("mail====================>",mail)
-      const newObj = {
-        id: mail.id,
-        threadId: mail.threadId,
-        labelIds: mail.labelIds,
-        snippet: mail.snippet,
-        headers: {},
-      };
+    //   // Loop through headers to find and extract specific ones
+    //   mail.payload.headers.forEach((header) => {
+    //     switch (header.name) {
+    //       case "Delivered-To":
+    //         newObj.headers.to = header.value;
+    //         break;
+    //       case "From":
+    //         newObj.headers.from = header.value;
+    //         break;
+    //       case "Subject":
+    //         newObj.headers.subject = header.value;
+    //         break;
+    //       case "Date":
+    //         newObj.headers.date = header.value;
+    //         break;
+    //       // Add more cases for other headers you want to extract
+    //       default:
+    //         break;
+    //     }
+    //   });
 
-      // Loop through headers to find and extract specific ones
-      mail.payload.headers.forEach((header) => {
-        switch (header.name) {
-          case "Delivered-To":
-            newObj.headers.to = header.value;
-            break;
-          case "From":
-            newObj.headers.from = header.value;
-            break;
-          case "Subject":
-            newObj.headers.subject = header.value;
-            break;
-          case "Date":
-            newObj.headers.date = header.value;
-            break;
-          // Add more cases for other headers you want to extract
-          default:
-            break;
-        }
-      });
+    //   return newObj;
+    // });
 
-      return newObj;
-    });
-
-    res.json({ data: newObject });
+    res.json({ data: allMails });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

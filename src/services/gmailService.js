@@ -217,52 +217,159 @@ const readInboxContent = async (searchText) => {
   return decodedStr;
 };
 
+// const readAllMails = async (req, page = 1, pageSize = 10) => {
+//   let allMessages = [];
+//   let nextPageToken = null;
+//   let accessTokens;
+
+//   try {
+//     accessTokens = await getAccessToken(req.params.emailId);
+//   } catch (error) {
+//     console.error("Failed to get access tokens:", error);
+//     throw error;
+//   }
+//   let pageToken = null;
+//   let currentPage = page;
+//   do {
+//     try {
+//       const messages = await listMessages(accessTokens, pageToken, pageSize);
+//       if (messages.messages) {
+//         for (const message of messages.messages) {
+//           const emailContent = await readGmailContent(
+//             null,
+//             message.id,
+//             accessTokens
+//           );
+//           allMessages.push(emailContent); // Concatenate or push to allMessages array
+//         }
+//       }
+//       pageToken = messages.nextPageToken;
+//       currentPage--;
+//     } catch (error) {
+//       console.error(
+//         `Error fetching messages with token ${accessTokens}:`,
+//         error
+//       );
+//       break;
+//     }
+//   } while (pageToken && currentPage > 0);
+//   return allMessages;
+// };
+
 const readAllMails = async (req, page = 1, pageSize = 10) => {
+  const searchQuery = req.query.search || "";
   let allMessages = [];
-  let nextPageToken = null;
-  let accessTokens;
+  let totalMessages = 0;
+  let pageToken = null;
 
   try {
-    accessTokens = await getAccessToken(req.params.emailId);
+    const accessTokens = await getAccessToken(req.params.emailId);
+
+    const startIndex = (page - 1) * pageSize;
+    let fetchedMessages = [];
+
+    // Fetch only the necessary number of pages
+    do {
+      const messages = await listMessages(
+        accessTokens,
+        searchQuery,
+        pageToken,
+        pageSize
+      );
+
+      if (messages.messages) {
+        fetchedMessages.push(...messages.messages);
+      }
+
+      pageToken = messages.nextPageToken;
+
+      if (messages.resultSizeEstimate) {
+        totalMessages = messages.resultSizeEstimate;
+      }
+
+      if (!pageToken || fetchedMessages.length >= startIndex + pageSize) {
+        break;
+      }
+    } while (pageToken);
+
+    // Calculate totalPages
+    const totalPages = Math.ceil(totalMessages / pageSize);
+
+    // Extract the required messages for the current page
+    const paginatedMessages = fetchedMessages.slice(
+      startIndex,
+      startIndex + pageSize
+    );
+
+    // Fetch full email content and extract required fields
+    const formattedMessages = await Promise.all(
+      paginatedMessages.map(async (message) => {
+        const emailContent = await readGmailContent(
+          null,
+          message.id,
+          accessTokens
+        );
+
+        const headers = {};
+        emailContent.payload.headers.forEach((header) => {
+          switch (header.name) {
+            case "Delivered-To":
+              headers.to = header.value;
+              break;
+            case "From":
+              headers.from = header.value;
+              break;
+            case "Subject":
+              headers.subject = header.value;
+              break;
+            case "Date":
+              headers.date = header.value;
+              break;
+            // Add more cases for other headers if needed
+            default:
+              break;
+          }
+        });
+
+        return {
+          id: emailContent.id,
+          threadId: emailContent.threadId,
+          labelIds: emailContent.labelIds,
+          snippet: emailContent.snippet,
+          headers: headers,
+        };
+      })
+    );
+
+    return {
+      messages: formattedMessages,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        hasNextPage: !!pageToken,
+        pageSize: pageSize,
+        totalMessages: totalMessages,
+      },
+    };
   } catch (error) {
-    console.error("Failed to get access tokens:", error);
+    console.error("Error fetching messages:", error);
     throw error;
   }
-  let pageToken = null;
-  let currentPage = page;
-  do {
-    try {
-      const messages = await listMessages(accessTokens, pageToken, pageSize);
-      if (messages.messages) {
-        for (const message of messages.messages) {
-          const emailContent = await readGmailContent(
-            null,
-            message.id,
-            accessTokens
-          );
-          allMessages.push(emailContent); // Concatenate or push to allMessages array
-        }
-      }
-      pageToken = messages.nextPageToken;
-      currentPage--;
-    } catch (error) {
-      console.error(
-        `Error fetching messages with token ${accessTokens}:`,
-        error
-      );
-      break;
-    }
-  } while (pageToken && currentPage > 0);
-  return allMessages;
 };
 
-const listMessages = async (accessToken, pageToken = null, maxResults = 10) => {
+const listMessages = async (
+  accessToken,
+  searchQuery = "",
+  pageToken = null,
+  maxResults = 10
+) => {
   // const accessToken = await getAccessToken();
   const url = `https://www.googleapis.com/gmail/v1/users/me/messages`;
   const params = {
     access_token: accessToken,
     maxResults: maxResults, // Maximum number of messages per page
     pageToken: pageToken,
+    q: searchQuery, // Include the search query in the request
   };
 
   const config = {
@@ -645,66 +752,3 @@ module.exports = {
   markUnreadEmails,
   forwardMessage,
 };
-
-// const axios = require("axios");
-// const qs = require("qs");
-// const { getTokenFromDB, saveTokenToDB } = require("./tokenStorage"); // Your DB functions
-
-// const getAccessToken = async (companyId) => {
-//   // Check if there's a valid token in the database
-//   let tokenData = await getTokenFromDB(companyId);
-
-//   // If token exists and is still valid, return it
-//   if (tokenData && tokenData.expires_at > Date.now()) {
-//     console.log("Using cached token");
-//     return tokenData.access_token;
-//   }
-
-//   // Otherwise, generate a new token
-//   const findClientCred = await getCompanyClients(companyId);
-//   const client = findClientCred[0]; // Assuming one client for simplicity
-
-//   const data = qs.stringify({
-//     client_id: client.client_id,
-//     client_secret: client.client_secret,
-//     refresh_token: client.refresh_token,
-//     grant_type: "refresh_token",
-//   });
-
-//   const config = {
-//     method: "post",
-//     url: "https://oauth2.googleapis.com/token",
-//     headers: {
-//       "Content-Type": "application/x-www-form-urlencoded",
-//     },
-//     data: data,
-//   };
-
-//   try {
-//     const response = await axios(config);
-//     const accessToken = response.data.access_token;
-//     const expiresIn = response.data.expires_in * 1000; // Convert to milliseconds
-
-//     // Calculate the expiration time
-//     const expiresAt = Date.now() + expiresIn;
-
-//     // Save the token and expiration time to the database
-//     await saveTokenToDB(companyId, accessToken, expiresAt);
-
-//     return accessToken;
-//   } catch (error) {
-//     console.error("Error getting access token: ", error.message);
-//     throw error;
-//   }
-// };
-
-// // Example function to get the token from the database
-// async function getTokenFromDB(companyId) {
-//   // Fetch the token from your database
-//   // Return an object like { access_token: '...', expires_at: 1234567890 }
-// }
-
-// // Example function to save the token to the database
-// async function saveTokenToDB(companyId, accessToken, expiresAt) {
-//   // Save the token and its expiration time to your database
-// }
