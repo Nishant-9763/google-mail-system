@@ -187,25 +187,44 @@ const searchGmail = async (searchItem) => {
   }
 };
 
-const readGmailContent = async (req, messageId, accessToken) => {
-  if (!accessToken) {
-    accessToken = await getAccessToken(req.params.emailId);
-  }
-  const config = {
-    method: "get",
-    url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+  const readGmailContent = async (req, messageId, accessToken) => {
+    if (!accessToken) {
+      accessToken = await getAccessToken(req.params.emailId);
+    }
+    const config = {
+      method: "get",
+      url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    };
+    try {
+      const response = await axios(config);
+      const singleMails = response.data;
+      // console.log("singleMails=============",singleMails.payload.headers);
+
+      // Extract recipients from the original message
+      const headers = singleMails.payload.headers;
+      const to = headers.find((header) => header.name === "To")?.value || "";
+      const cc = headers.find((header) => header.name === "Cc")?.value || "";
+      const bcc = headers.find((header) => header.name === "Bcc")?.value || "";
+      const from = headers.find((header) => header.name === "From")?.value || "";
+      const subject =
+        headers.find((header) => header.name === "Subject")?.value || "";
+      const emailMetadata = {
+        to,
+        cc,
+        bcc,
+        from,
+        subject,
+      };
+      singleMails.emailMetadata = emailMetadata
+      return singleMails;
+    } catch (error) {
+      console.error("Error reading Gmail content: ", error.message);
+      throw error;
+    }
   };
-  try {
-    const response = await axios(config);
-    return response.data;
-  } catch (error) {
-    console.error("Error reading Gmail content: ", error.message);
-    throw error;
-  }
-};
 
 const readInboxContent = async (searchText) => {
   const threadId = await searchGmail(searchText);

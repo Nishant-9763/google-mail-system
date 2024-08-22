@@ -99,25 +99,25 @@ exports.readSingleMails = async (req, res) => {
       req,
       req.params.messageId
     );
-    if (req.query.action === "reply") {
-      // Extract recipients from the original message
-      const headers = singleMails.payload.headers;
-      const to = headers.find((header) => header.name === "To")?.value || "";
-      const cc = headers.find((header) => header.name === "Cc")?.value || "";
-      const bcc = headers.find((header) => header.name === "Bcc")?.value || "";
-      const from =
-        headers.find((header) => header.name === "From")?.value || "";
-      const subject =
-        headers.find((header) => header.name === "Subject")?.value || "";
-      const obj = {
-        to,
-        cc,
-        bcc,
-        from,
-        subject,
-      };
-      return res.json({ data: obj });
-    }
+    // if (req.query.action === "reply") {
+    //   // Extract recipients from the original message
+    //   const headers = singleMails.payload.headers;
+    //   const to = headers.find((header) => header.name === "To")?.value || "";
+    //   const cc = headers.find((header) => header.name === "Cc")?.value || "";
+    //   const bcc = headers.find((header) => header.name === "Bcc")?.value || "";
+    //   const from =
+    //     headers.find((header) => header.name === "From")?.value || "";
+    //   const subject =
+    //     headers.find((header) => header.name === "Subject")?.value || "";
+    //   const obj = {
+    //     to,
+    //     cc,
+    //     bcc,
+    //     from,
+    //     subject,
+    //   };
+    //   return res.json({ data: obj });
+    // }
     res.json({ data: singleMails });
   } catch (error) {
     res.status(500).json({ error: error.message });
