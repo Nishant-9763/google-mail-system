@@ -276,13 +276,21 @@ const readInboxContent = async (searchText) => {
 // };
 
 const readAllMails = async (req, page = 1, pageSize = 10) => {
-  const searchQuery = req.query.search || "";
+  const { type = "all", search = "" } = req.query;
   let allMessages = [];
   let totalMessages = 0;
   let pageToken = null;
 
   try {
     const accessTokens = await getAccessToken(req.params.emailId);
+
+    // Construct search query based on type
+    const typeQueryMap = {
+      unread: " is:unread",
+      sent: " in:sent",
+      inbox: " in:inbox",
+    };
+    const searchQuery = search + (typeQueryMap[type] || "");
 
     const startIndex = (page - 1) * pageSize;
     let fetchedMessages = [];
@@ -329,26 +337,33 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
           accessTokens
         );
 
-        const headers = {};
-        emailContent.payload.headers.forEach((header) => {
-          switch (header.name) {
-            case "Delivered-To":
-              headers.to = header.value;
-              break;
-            case "From":
-              headers.from = header.value;
-              break;
-            case "Subject":
-              headers.subject = header.value;
-              break;
-            case "Date":
-              headers.date = header.value;
-              break;
-            // Add more cases for other headers if needed
-            default:
-              break;
+        // const headers = {};
+        // emailContent.payload.headers.forEach((header) => {
+        //   switch (header.name) {
+        //     case "Delivered-To":
+        //       headers.to = header.value;
+        //       break;
+        //     case "From":
+        //       headers.from = header.value;
+        //       break;
+        //     case "Subject":
+        //       headers.subject = header.value;
+        //       break;
+        //     case "Date":
+        //       headers.date = header.value;
+        //       break;
+        //     // Add more cases for other headers if needed
+        //     default:
+        //       break;
+        //   }
+        // });
+        const headers = emailContent.payload.headers.reduce((acc, header) => {
+          const { name, value } = header;
+          if (["Delivered-To", "From", "Subject", "Date"].includes(name)) {
+            acc[name.toLowerCase()] = value;
           }
-        });
+          return acc;
+        }, {});
 
         return {
           id: emailContent.id,
