@@ -725,17 +725,26 @@ const forwardMessage = async (req) => {
   );
 
   const originalMessage = originalMessageResponse.data;
-  console.log("originalMessage=", originalMessage);
+  let decodedOriginalMessage = "";
 
-  const originalMessageContent = originalMessage.payload.body.data;
-  const decodedOriginalMessage = Buffer.from(
-    originalMessageContent,
-    "base64"
-  ).toString("ascii");
-
+  if (originalMessage.payload.body && originalMessage.payload.body.data) {
+    // Plain text message
+    decodedOriginalMessage = Buffer.from(
+      originalMessage.payload.body.data,
+      "base64"
+    ).toString("ascii");
+  } else if (originalMessage.payload.parts) {
+    // Multipart message
+    // You may need to iterate over parts to find the desired content
+    decodedOriginalMessage = originalMessage.payload.parts
+      .filter((part) => part.mimeType === "text/plain")
+      .map((part) => Buffer.from(part.body.data, "base64").toString("ascii"))
+      .join("\n");
+  }
+  const toAddresses = Array.isArray(to) ? to.join(", ") : to;
   // Prepare the forwarded message
   const data =
-    `To: ${to}\n` +
+    `To: ${toAddresses}\n` +
     `Subject: Fwd: ${subject}\n` +
     `Content-Type: text/plain; charset=utf-8\n` +
     `From: ${from}\n` +
