@@ -11,6 +11,10 @@ router.post("/:emailId/delete-emails", gmailController.deleteEmails);
 router.post("/:emailId/mark-read-unread-emails", gmailController.markUnreadEmails);
 router.put("/:emailId/update-emails", gmailController.updateEmails);
 router.delete("/delete-emails", gmailController.deleteLocalEmail);
+router.get("/call-back", gmailController.genrateToken);
+router.post("/auth", gmailController.auth);
+router.get("/oauth2callback", gmailController.oauth2callback);
+
 //-------------------------------work in progress ----------------------------------------------------------
 router.get("/search/:searchItem", gmailController.searchGmail);
 router.get("/read/:searchText", gmailController.readInboxContent);

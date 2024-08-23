@@ -3,7 +3,6 @@ const gmailService = require("../services/gmailService");
 exports.searchGmail = async (req, res) => {
   const { searchItem } = req.params;
   try {
-    console.log("hiiiiiii-----------1");
     const threadId = await gmailService.searchGmail(searchItem);
     res.json({ data: response });
   } catch (error) {
@@ -151,6 +150,33 @@ exports.updateEmails = async (req, res) => {
 exports.deleteLocalEmail = async (req, res) => {
   try {
     const response = await gmailService.deleteLocalEmail(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.genrateToken = async (req, res) => {
+  try {
+    const response = await gmailService.genrateToken(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.auth = async (req, res) => {
+  try {
+    const response = await gmailService.auth(req, res);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.oauth2callback = async (req, res) => {
+  try {
+    const response = await gmailService.oauth2callback(req, res);
     res.json({ data: response });
   } catch (error) {
     res.status(500).json({ error: error.message });

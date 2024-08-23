@@ -4,11 +4,88 @@ const qs = require("qs");
 const ClientModel = require("../models/client.model");
 const CompanyModel = require("../models/company.model");
 const SessionModel = require("../models/session.model");
+const { google } = require("googleapis");
 
-// const qs = require("qs");
-// const { getTokenFromDB, saveTokenToDB } = require("./tokenStorage"); // Your DB functions
+// Set up the OAuth2 client with your credentials
+const oauth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID, // Replace with your client ID
+  process.env.CLIENT_SECRET, // Replace with your client secret
+  process.env.REDIRECT_URL // Replace with your redirect URI
+);
+
+// Define the scopes you need
+const SCOPES = [process.env.SCOPES];
+
+// API endpoint to initiate OAuth
+const auth = async (req, res) => {
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: SCOPES,
+  });
+  return authUrl;
+};
+
+// API endpoint to handle OAuth callback and exchange code for tokens
+const oauth2callback = async (req, res) => {
+  const { code } = req.query;
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+    console.log("Tokens:", tokens);
+    return tokens;
+  } catch (error) {
+    console.error("Error retrieving access token:", error);
+    // res.status(500).json({ error: "Authentication failed" });
+    throw error;
+  }
+};
 
 const getAccessToken = async (emailId) => {
+  if (!emailId) {
+    return res.status(400).send("Refresh token is required");
+  }
+  let tokenData = await getTokenFromDB(emailId);
+
+  if (tokenData && tokenData.expiresAt > Date.now()) {
+    return tokenData.accessToken;
+  }
+  const findClientCred = await ClientModel.findOne({ _id: emailId });
+  try {
+    oauth2Client.setCredentials({
+      refresh_token: findClientCred.refresh_token,
+    });
+    const response = await oauth2Client.refreshAccessToken();
+    const credentials = response.credentials;
+
+    const access_token = credentials.access_token;
+    const expiresAt = credentials.expiry_date; // Convert to milliseconds
+
+    // Save the token and expiration time to the database
+    await saveTokenToDB(emailId, access_token, expiresAt);
+
+    return access_token;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    // res.status(500).send("Could not refresh access token");
+    throw error;
+  }
+};
+
+// Function to refresh the access token
+async function refreshAccessToken(refreshToken) {
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  try {
+    const response = await oauth2Client.refreshAccessToken();
+    const credentials = response.credentials;
+
+    return credentials;
+  } catch (error) {
+    throw new Error("Could not refresh access token");
+  }
+}
+
+const getAccessTokens = async (emailId) => {
   let tokenData = await getTokenFromDB(emailId);
   if (tokenData && tokenData.expiresAt > Date.now()) {
     return tokenData.accessToken;
@@ -77,92 +154,6 @@ async function saveTokenToDB(emailId, accessToken, expiresAt) {
   }
   return createSession;
 }
-
-// getAccessToken = async () => {
-//  let  companyId= "6669d5e0505bda96774e05d9"
-//   const findClientCred = await getCompanyClients(companyId)
-//   findClientCred.map(async (e)=>{
-//     const data = qs.stringify({
-//       client_id: e.client_id,
-//       client_secret: e.client_secret,
-//       refresh_token: e.refresh_token,
-//       grant_type: "refresh_token",
-//     });
-
-//     const config = {
-//       method: "post",
-//       url: "https://oauth2.googleapis.com/token",
-//       headers: {
-//         "Content-Type": "application/x-www-form-urlencoded",
-//       },
-//       data: data,
-//     };
-
-//     try {
-//       const response = await axios(config);
-//       accessToken = response.data.access_token;
-//       return accessToken;
-//     } catch (error) {
-//       console.error("Error getting access token: ", error);
-//       throw error;
-//     }
-//   })
-// };
-
-const getAccessTokens = async (req) => {
-  let companyId;
-  if (req && req.query && req.query.email_id) {
-    const { email_id } = req.query;
-    companyId = email_id;
-  } else {
-    companyId = "6669d5e0505bda96774e05d9";
-  }
-  console.log("req.query=======1==========", companyId);
-  try {
-    const findClientCred = await getCompanyClients(companyId);
-    console.log("findClientCred------------", findClientCred);
-    const accessTokenPromises = findClientCred.map(async (client) => {
-      const data = qs.stringify({
-        client_id: client.client_id,
-        client_secret: client.client_secret,
-        refresh_token: client.refresh_token,
-        grant_type: "refresh_token",
-      });
-
-      const config = {
-        method: "post",
-        url: "https://oauth2.googleapis.com/token",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data: data,
-      };
-
-      try {
-        const response = await axios(config);
-        console.log("response.data=============", response.data);
-
-        return response.data.access_token;
-      } catch (error) {
-        console.error(
-          `Error getting access token for client ${client.client_id}:`,
-          error.message
-        );
-        // Continue processing other tokens even if one fails
-        return null;
-      }
-    });
-
-    // Wait for all access tokens to be retrieved
-    const accessTokens = await Promise.all(accessTokenPromises);
-    console.log("accessTokens-------------", accessTokens);
-    // Filter out any null values that resulted from failed requests
-    return accessTokens.filter((token) => token !== null);
-  } catch (error) {
-    console.error("Error fetching client credentials:", error.message);
-    throw error;
-  }
-};
 
 const searchGmail = async (searchItem) => {
   const accessToken = await getAccessToken();
@@ -275,11 +266,105 @@ const readInboxContent = async (searchText) => {
 //   return allMessages;
 // };
 
+// const readAllMails = async (req, page = 1, pageSize = 10) => {
+//   const { type = "all", search = "" } = req.query;
+//   let allMessages = [];
+//   let totalMessages = 0;
+//   let pageToken = null;
+
+//   try {
+//     const accessTokens = await getAccessToken(req.params.emailId);
+//     // Construct search query based on type
+//     const typeQueryMap = {
+//       unread: " is:unread",
+//       sent: " in:sent",
+//       inbox: " in:inbox",
+//     };
+//     const searchQuery = search + (typeQueryMap[type] || "");
+
+//     const startIndex = (page - 1) * pageSize;
+//     let fetchedMessages = [];
+
+//     // Fetch only the necessary number of pages
+//     do {
+//       const messages = await listMessages(
+//         accessTokens,
+//         searchQuery,
+//         pageToken,
+//         pageSize
+//       );
+
+//       if (messages.messages) {
+//         fetchedMessages.push(...messages.messages);
+//       }
+
+//       pageToken = messages.nextPageToken;
+
+//       if (messages.resultSizeEstimate) {
+//         totalMessages = messages.resultSizeEstimate;
+//       }
+
+//       if (!pageToken || fetchedMessages.length >= startIndex + pageSize) {
+//         break;
+//       }
+//     } while (pageToken);
+
+//     // Calculate totalPages
+//     const totalPages = Math.ceil(totalMessages / pageSize);
+
+//     // Extract the required messages for the current page
+//     const paginatedMessages = fetchedMessages.slice(
+//       startIndex,
+//       startIndex + pageSize
+//     );
+
+//     // Fetch full email content and extract required fields
+//     const formattedMessages = await Promise.all(
+//       paginatedMessages.map(async (message) => {
+//         const emailContent = await readGmailContent(
+//           null,
+//           message.id,
+//           accessTokens
+//         );
+//         const headers = emailContent.payload.headers.reduce((acc, header) => {
+//           const { name, value } = header;
+//           if (["Delivered-To", "From", "Subject", "Date"].includes(name)) {
+//             acc[name.toLowerCase()] = value;
+//           }
+//           return acc;
+//         }, {});
+
+//         return {
+//           id: emailContent.id,
+//           threadId: emailContent.threadId,
+//           labelIds: emailContent.labelIds,
+//           snippet: emailContent.snippet,
+//           headers: headers,
+//         };
+//       })
+//     );
+
+//     return {
+//       messages: formattedMessages,
+//       pagination: {
+//         currentPage: page,
+//         totalPages: totalPages,
+//         hasNextPage: !!pageToken,
+//         pageSize: pageSize,
+//         totalMessages: totalMessages,
+//       },
+//     };
+//   } catch (error) {
+//     console.error("Error fetching messages:", error);
+//     throw error;
+//   }
+// };
+
 const readAllMails = async (req, page = 1, pageSize = 10) => {
   const { type = "all", search = "" } = req.query;
-  let allMessages = [];
   let totalMessages = 0;
   let pageToken = null;
+  let allMessages = [];
 
   try {
     const accessTokens = await getAccessToken(req.params.emailId);
@@ -292,10 +377,9 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
     };
     const searchQuery = search + (typeQueryMap[type] || "");
 
-    const startIndex = (page - 1) * pageSize;
     let fetchedMessages = [];
 
-    // Fetch only the necessary number of pages
+    // Fetch messages and apply pagination
     do {
       const messages = await listMessages(
         accessTokens,
@@ -309,24 +393,20 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
       }
 
       pageToken = messages.nextPageToken;
+      totalMessages = messages.resultSizeEstimate || 0;
 
-      if (messages.resultSizeEstimate) {
-        totalMessages = messages.resultSizeEstimate;
-      }
-
-      if (!pageToken || fetchedMessages.length >= startIndex + pageSize) {
+      // Break the loop if we have enough messages for the current page
+      if (fetchedMessages.length >= page * pageSize) {
         break;
       }
     } while (pageToken);
 
-    // Calculate totalPages
-    const totalPages = Math.ceil(totalMessages / pageSize);
+    // Calculate start and end index for current page
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
 
-    // Extract the required messages for the current page
-    const paginatedMessages = fetchedMessages.slice(
-      startIndex,
-      startIndex + pageSize
-    );
+    // Extract the messages for the current page
+    const paginatedMessages = fetchedMessages.slice(startIndex, endIndex);
 
     // Fetch full email content and extract required fields
     const formattedMessages = await Promise.all(
@@ -336,27 +416,6 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
           message.id,
           accessTokens
         );
-
-        // const headers = {};
-        // emailContent.payload.headers.forEach((header) => {
-        //   switch (header.name) {
-        //     case "Delivered-To":
-        //       headers.to = header.value;
-        //       break;
-        //     case "From":
-        //       headers.from = header.value;
-        //       break;
-        //     case "Subject":
-        //       headers.subject = header.value;
-        //       break;
-        //     case "Date":
-        //       headers.date = header.value;
-        //       break;
-        //     // Add more cases for other headers if needed
-        //     default:
-        //       break;
-        //   }
-        // });
         const headers = emailContent.payload.headers.reduce((acc, header) => {
           const { name, value } = header;
           if (["Delivered-To", "From", "Subject", "Date"].includes(name)) {
@@ -379,8 +438,8 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
       messages: formattedMessages,
       pagination: {
         currentPage: page,
-        totalPages: totalPages,
-        hasNextPage: !!pageToken,
+        totalPages: Math.ceil(totalMessages / pageSize),
+        hasNextPage: fetchedMessages.length > page * pageSize,
         pageSize: pageSize,
         totalMessages: totalMessages,
       },
@@ -516,37 +575,6 @@ const composeEmail = async (req) => {
   }
 };
 
-//  composeEmail = async (message) => {
-//   try {
-//     const accessToken = await this.getAccessToken();
-
-//     const transport = nodemailer.createTransport({
-//       service: 'gmail',
-//       auth: {
-//         type: 'OAuth2',
-//         user: 'nishantgupta9763@gmail.com',
-//         clientId: this.client_id,
-//         clientSecret: this.client_secret,
-//         refreshToken: this.refresh_token,
-//         accessToken: accessToken,
-//       },
-//     });
-
-//     const mailOptions = {
-//       from: 'SENDER NAME <nishantgupta9763@gmail.com>',
-//       to: 'nishant97636@gmail.com',
-//       subject: 'Hello from gmail using API',
-//       text: 'Hello from gmail email using API',
-//       html: '<h1>Hello from gmail email using API</h1>',
-//     };
-
-//     const result = await transport.sendMail(mailOptions);
-//     return result;
-//   } catch (error) {
-//     return error;
-//   }
-// }
-
 const getLabels = async (req) => {
   const accessToken = await getAccessToken();
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/labels`;
@@ -605,7 +633,10 @@ const getemails = async (req) => {
   const regexQuery = new RegExp(searchQuery, "i"); // Create a case-insensitive regex for partial matching
 
   // Fetch clients with the matching emails
-  const companyClients = await ClientModel.find({ email: regexQuery })
+  const companyClients = await ClientModel.find({
+    email: regexQuery,
+    isDeleted: false,
+  })
     .sort({ createdAt: -1 })
     .select({ email: 1 });
 
@@ -841,4 +872,7 @@ module.exports = {
   forwardMessage,
   updateEmails,
   deleteLocalEmail,
+  // genrateToken,
+  auth,
+  oauth2callback,
 };
