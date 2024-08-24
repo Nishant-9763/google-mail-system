@@ -27,7 +27,7 @@ const auth = async (req, res) => {
 
 // API endpoint to handle OAuth callback and exchange code for tokens
 const oauth2callback = async (req, res) => {
-  const { code } = req.query;
+  const { code } = req.body;
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
@@ -196,6 +196,7 @@ const readGmailContent = async (req, messageId, accessToken) => {
 
     // Extract recipients from the original message
     const headers = singleMails.payload.headers;
+    console.log("headers=========================",headers)
     const to = headers.find((header) => header.name === "To")?.value || "";
     const cc = headers.find((header) => header.name === "Cc")?.value || "";
     const bcc = headers.find((header) => header.name === "Bcc")?.value || "";
