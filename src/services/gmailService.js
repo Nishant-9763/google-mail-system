@@ -14,7 +14,7 @@ const oauth2Client = new google.auth.OAuth2(
 );
 
 // Define the scopes you need
-const SCOPES = [process.env.SCOPES];
+const SCOPES = [process.env.SCOPES_FOR_EMAIL, process.env.SCOPES_FOR_PROFILE];
 
 // API endpoint to initiate OAuth
 const auth = async (req, res) => {
@@ -27,13 +27,29 @@ const auth = async (req, res) => {
 
 // API endpoint to handle OAuth callback and exchange code for tokens
 const oauth2callback = async (req, res) => {
-  const { code } = req.body;
-
+  const { code } = req.body; // query
   try {
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
-    console.log("Tokens:", tokens);
-    return tokens;
+    // console.log("Tokens:", tokens);
+
+    // Fetch user profile information
+    const oauth2 = google.oauth2({
+      auth: oauth2Client,
+      version: "v2",
+    });
+
+    const userInfo = await oauth2.userinfo.get();
+    // console.log("User Info:", userInfo.data);
+    const payload = {
+      refresh_token: tokens.refresh_token,
+      accessToken: tokens.access_token,
+      email: userInfo.data.email,
+      expiresAt: tokens.expiry_date,
+      scope: tokens.scope,
+    };
+    const companyClient = await ClientModel.create(payload);
+    return companyClient;
   } catch (error) {
     console.error("Error retrieving access token:", error);
     // res.status(500).json({ error: "Authentication failed" });
@@ -196,7 +212,6 @@ const readGmailContent = async (req, messageId, accessToken) => {
 
     // Extract recipients from the original message
     const headers = singleMails.payload.headers;
-    console.log("headers=========================",headers)
     const to = headers.find((header) => header.name === "To")?.value || "";
     const cc = headers.find((header) => header.name === "Cc")?.value || "";
     const bcc = headers.find((header) => header.name === "Bcc")?.value || "";

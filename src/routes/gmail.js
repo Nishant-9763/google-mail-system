@@ -13,7 +13,7 @@ router.put("/:emailId/update-emails", gmailController.updateEmails);
 router.delete("/delete-emails", gmailController.deleteLocalEmail);
 router.get("/call-back", gmailController.genrateToken);
 router.post("/auth", gmailController.auth);
-router.post("/oauth2callback", gmailController.oauth2callback);
+router.post("/oauth2callback", gmailController.oauth2callback); // get
 
 //-------------------------------work in progress ----------------------------------------------------------
 router.get("/search/:searchItem", gmailController.searchGmail);
