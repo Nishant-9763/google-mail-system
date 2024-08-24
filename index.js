@@ -44,7 +44,7 @@ const routes = require("./src/routes/index");
 mongoose.set("strictQuery", true);
 mongoose
   .connect(process.env.DB_URL, {
-    useNewUrlParser: true,
+    // useNewUrlParser: true,
   })
   .then(() => console.log("MongoDb is connected"))
   .catch((err) => console.log(err));

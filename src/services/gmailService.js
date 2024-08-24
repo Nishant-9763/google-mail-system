@@ -128,7 +128,7 @@ const getAccessTokens = async (emailId) => {
 
 // Example function to get the token from the database
 async function getTokenFromDB(emailId) {
-  const findSession = await SessionModel.findOne({ emailId: emailId });
+  const findSession = await ClientModel.findOne({ _id: emailId });
   if (!findSession) {
     return null;
   }
@@ -138,10 +138,10 @@ async function getTokenFromDB(emailId) {
 // Example function to save the token to the database
 async function saveTokenToDB(emailId, accessToken, expiresAt) {
   let createSession;
-  const findSession = await SessionModel.findOne({ emailId: emailId });
+  const findSession = await ClientModel.findOne({ _id: emailId });
   if (findSession) {
-    createSession = await SessionModel.findOneAndUpdate(
-      { emailId: emailId },
+    createSession = await ClientModel.findOneAndUpdate(
+      { _id: emailId },
       { accessToken: accessToken, expiresAt: expiresAt },
       { new: true }
     );
@@ -368,7 +368,6 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
 
   try {
     const accessTokens = await getAccessToken(req.params.emailId);
-
     // Construct search query based on type
     const typeQueryMap = {
       unread: " is:unread",
