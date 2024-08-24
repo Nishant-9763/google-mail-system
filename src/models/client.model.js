@@ -10,6 +10,7 @@ const clientSchema = new mongoose.Schema(
     email: {
       type: String,
       unique: true,
+      message: "Email already exists",
     },
     client_id: String,
     client_secret: String,
