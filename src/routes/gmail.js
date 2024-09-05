@@ -14,11 +14,12 @@ router.delete("/delete-emails", gmailController.deleteLocalEmail);
 router.get("/call-back", gmailController.genrateToken);
 router.post("/auth", gmailController.auth);
 router.post("/oauth2callback", gmailController.oauth2callback); // get
+router.post("/:emailId/draft", gmailController.draftEmail);
 
 //-------------------------------work in progress ----------------------------------------------------------
 router.get("/search/:searchItem", gmailController.searchGmail);
 router.get("/read/:searchText", gmailController.readInboxContent);
-router.post("/compose", gmailController.composeEmail);
+router.post("/:emailId/compose", gmailController.composeEmail);
 router.get("/labels", gmailController.getLabels);
 router.post("/company", gmailController.storeCompany);
 router.post("/company-client", gmailController.storeCompanyClients);

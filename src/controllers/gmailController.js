@@ -59,7 +59,17 @@ exports.sendReply = async (req, res) => {
 exports.composeEmail = async (req, res) => {
   const { message } = req.body;
   try {
-    const response = await gmailService.composeEmail(message);
+    const response = await gmailService.composeEmail(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.draftEmail = async (req, res) => {
+  const { message } = req.body;
+  try {
+    const response = await gmailService.draftEmail(req);
     res.json({ data: response });
   } catch (error) {
     res.status(500).json({ error: error.message });

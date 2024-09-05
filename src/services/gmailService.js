@@ -389,6 +389,9 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
       unread: " is:unread",
       sent: " in:sent",
       inbox: " in:inbox",
+      spam: " in:spam", // Fetch Spam messages
+      trash: " in:trash", // Fetch Trash messages (deleted emails)
+      draft: " in:drafts", // Fetch Draft messages
     };
     const searchQuery = search + (typeQueryMap[type] || "");
 
@@ -553,6 +556,8 @@ const sendReply = async (req) => {
 
 const composeEmail = async (req) => {
   const { message, to, subject, from } = req.body;
+  console.log("message===",message,"to====",to,"subject====",subject,"from=====",from);
+  
   const data =
     `To: ${to}\n` +
     `Subject: ${subject}\n` +
@@ -560,7 +565,7 @@ const composeEmail = async (req) => {
     `From: ${from}\n` +
     `${message}`;
 
-  const accessToken = await this.getAccessToken();
+    const accessTokens = await getAccessToken(req.params.emailId);
 
   const url = `https://www.googleapis.com/gmail/v1/users/me/messages/send`;
   const requestBody = {
@@ -575,7 +580,7 @@ const composeEmail = async (req) => {
     method: "post",
     url: url,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessTokens}`,
       "Content-Type": "application/json",
     },
     data: requestBody,
@@ -589,6 +594,56 @@ const composeEmail = async (req) => {
     throw error;
   }
 };
+
+const draftEmail = async (req) => {
+  const { message, to, subject, from } = req.body;
+
+  const findEmail = await ClientModel.findOne({id:req.params.emailId})
+  
+  // Compose the raw email data
+  const data =
+    `To: ${to}\n` +
+    `Subject: ${subject}\n` +
+    `Content-Type: text/plain; charset=utf-8\n` +
+    `From: ${findEmail.email}\n\n` +
+    `${message}`;
+
+  // Get access token (assuming you have an existing function to get this)
+  const accessTokens = await getAccessToken(req.params.emailId);
+
+  // Prepare the raw email in base64 format and replace URL-safe characters
+  const requestBody = {
+    message: {
+      raw: Buffer.from(data)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, ""), // URL-safe base64 encoding
+    },
+  };
+
+  // Gmail API URL for creating a draft
+  const url = `https://www.googleapis.com/gmail/v1/users/me/drafts`;
+
+  const config = {
+    method: "post",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessTokens}`,
+      "Content-Type": "application/json",
+    },
+    data: requestBody,
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data; // Return the draft response from Gmail
+  } catch (error) {
+    console.error("Error creating email draft: ", error);
+    throw error;
+  }
+};
+
 
 const getLabels = async (req) => {
   const accessToken = await getAccessToken();
@@ -877,6 +932,7 @@ module.exports = {
   readInboxContent,
   sendReply,
   composeEmail,
+  draftEmail,
   getLabels,
   storeCompany,
   storeCompanyClients,
