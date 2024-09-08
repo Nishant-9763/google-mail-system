@@ -14,7 +14,11 @@ router.delete("/delete-emails", gmailController.deleteLocalEmail);
 router.get("/call-back", gmailController.genrateToken);
 router.post("/auth", gmailController.auth);
 router.post("/oauth2callback", gmailController.oauth2callback); // get
-router.post("/:emailId/draft", gmailController.draftEmail);
+router.post("/:emailId/draft", gmailController.saveDraft);
+router.put("/:emailId/update-draft", gmailController.updateDraft);
+router.get("/:emailId/get-drafts", gmailController.listDrafts);
+router.get("/:emailId/get-draft/:draftId", gmailController.getSingleDraft);
+router.post("/:emailId/sent-draft/:draftId", gmailController.sendDraft);
 
 //-------------------------------work in progress ----------------------------------------------------------
 router.get("/search/:searchItem", gmailController.searchGmail);

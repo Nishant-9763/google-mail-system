@@ -57,7 +57,6 @@ exports.sendReply = async (req, res) => {
 };
 
 exports.composeEmail = async (req, res) => {
-  const { message } = req.body;
   try {
     const response = await gmailService.composeEmail(req);
     res.json({ data: response });
@@ -66,10 +65,45 @@ exports.composeEmail = async (req, res) => {
   }
 };
 
-exports.draftEmail = async (req, res) => {
-  const { message } = req.body;
+exports.saveDraft = async (req, res) => {
   try {
-    const response = await gmailService.draftEmail(req);
+    const response = await gmailService.saveDraft(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateDraft = async (req, res) => {
+  try {
+    const response = await gmailService.updateDraft(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.sendDraft = async (req, res) => {
+  try {
+    const response = await gmailService.sendDraft(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.listDrafts = async (req, res) => {
+  try {
+    const response = await gmailService.listDrafts(req);
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getSingleDraft = async (req, res) => {
+  try {
+    const response = await gmailService.getSingleDraft(req);
     res.json({ data: response });
   } catch (error) {
     res.status(500).json({ error: error.message });

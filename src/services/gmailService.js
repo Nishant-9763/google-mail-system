@@ -14,7 +14,11 @@ const oauth2Client = new google.auth.OAuth2(
 );
 
 // Define the scopes you need
-const SCOPES = [process.env.SCOPES_FOR_EMAIL, process.env.SCOPES_FOR_PROFILE];
+const SCOPES = [
+  process.env.SCOPES_FOR_EMAIL,
+  process.env.SCOPES_FOR_PROFILE,
+  process.env.SCOPES_FOR_COMPOSE,
+];
 
 // API endpoint to initiate OAuth
 const auth = async (req, res) => {
@@ -243,139 +247,6 @@ const readInboxContent = async (searchText) => {
   return decodedStr;
 };
 
-// const readAllMails = async (req, page = 1, pageSize = 10) => {
-//   let allMessages = [];
-//   let nextPageToken = null;
-//   let accessTokens;
-
-//   try {
-//     accessTokens = await getAccessToken(req.params.emailId);
-//   } catch (error) {
-//     console.error("Failed to get access tokens:", error);
-//     throw error;
-//   }
-//   let pageToken = null;
-//   let currentPage = page;
-//   do {
-//     try {
-//       const messages = await listMessages(accessTokens, pageToken, pageSize);
-//       if (messages.messages) {
-//         for (const message of messages.messages) {
-//           const emailContent = await readGmailContent(
-//             null,
-//             message.id,
-//             accessTokens
-//           );
-//           allMessages.push(emailContent); // Concatenate or push to allMessages array
-//         }
-//       }
-//       pageToken = messages.nextPageToken;
-//       currentPage--;
-//     } catch (error) {
-//       console.error(
-//         `Error fetching messages with token ${accessTokens}:`,
-//         error
-//       );
-//       break;
-//     }
-//   } while (pageToken && currentPage > 0);
-//   return allMessages;
-// };
-
-// const readAllMails = async (req, page = 1, pageSize = 10) => {
-//   const { type = "all", search = "" } = req.query;
-//   let allMessages = [];
-//   let totalMessages = 0;
-//   let pageToken = null;
-
-//   try {
-//     const accessTokens = await getAccessToken(req.params.emailId);
-//     // Construct search query based on type
-//     const typeQueryMap = {
-//       unread: " is:unread",
-//       sent: " in:sent",
-//       inbox: " in:inbox",
-//     };
-//     const searchQuery = search + (typeQueryMap[type] || "");
-
-//     const startIndex = (page - 1) * pageSize;
-//     let fetchedMessages = [];
-
-//     // Fetch only the necessary number of pages
-//     do {
-//       const messages = await listMessages(
-//         accessTokens,
-//         searchQuery,
-//         pageToken,
-//         pageSize
-//       );
-
-//       if (messages.messages) {
-//         fetchedMessages.push(...messages.messages);
-//       }
-
-//       pageToken = messages.nextPageToken;
-
-//       if (messages.resultSizeEstimate) {
-//         totalMessages = messages.resultSizeEstimate;
-//       }
-
-//       if (!pageToken || fetchedMessages.length >= startIndex + pageSize) {
-//         break;
-//       }
-//     } while (pageToken);
-
-//     // Calculate totalPages
-//     const totalPages = Math.ceil(totalMessages / pageSize);
-
-//     // Extract the required messages for the current page
-//     const paginatedMessages = fetchedMessages.slice(
-//       startIndex,
-//       startIndex + pageSize
-//     );
-
-//     // Fetch full email content and extract required fields
-//     const formattedMessages = await Promise.all(
-//       paginatedMessages.map(async (message) => {
-//         const emailContent = await readGmailContent(
-//           null,
-//           message.id,
-//           accessTokens
-//         );
-//         const headers = emailContent.payload.headers.reduce((acc, header) => {
-//           const { name, value } = header;
-//           if (["Delivered-To", "From", "Subject", "Date"].includes(name)) {
-//             acc[name.toLowerCase()] = value;
-//           }
-//           return acc;
-//         }, {});
-
-//         return {
-//           id: emailContent.id,
-//           threadId: emailContent.threadId,
-//           labelIds: emailContent.labelIds,
-//           snippet: emailContent.snippet,
-//           headers: headers,
-//         };
-//       })
-//     );
-
-//     return {
-//       messages: formattedMessages,
-//       pagination: {
-//         currentPage: page,
-//         totalPages: totalPages,
-//         hasNextPage: !!pageToken,
-//         pageSize: pageSize,
-//         totalMessages: totalMessages,
-//       },
-//     };
-//   } catch (error) {
-//     console.error("Error fetching messages:", error);
-//     throw error;
-//   }
-// };
-
 const readAllMails = async (req, page = 1, pageSize = 10) => {
   const { type = "all", search = "" } = req.query;
   let totalMessages = 0;
@@ -502,7 +373,7 @@ const listMessages = async (
 };
 
 const sendReply = async (req) => {
-  const { threadId, message, to, subject, from } = req.body;
+  const { threadId, message, to, subject, from, cc, bcc } = req.body;
   const accessToken = await getAccessToken(req.params.emailId);
   // const data =
   //   `To: ${to}\n` +
@@ -556,8 +427,17 @@ const sendReply = async (req) => {
 
 const composeEmail = async (req) => {
   const { message, to, subject, from } = req.body;
-  console.log("message===",message,"to====",to,"subject====",subject,"from=====",from);
-  
+  console.log(
+    "message===",
+    message,
+    "to====",
+    to,
+    "subject====",
+    subject,
+    "from=====",
+    from
+  );
+
   const data =
     `To: ${to}\n` +
     `Subject: ${subject}\n` +
@@ -565,7 +445,7 @@ const composeEmail = async (req) => {
     `From: ${from}\n` +
     `${message}`;
 
-    const accessTokens = await getAccessToken(req.params.emailId);
+  const accessTokens = await getAccessToken(req.params.emailId);
 
   const url = `https://www.googleapis.com/gmail/v1/users/me/messages/send`;
   const requestBody = {
@@ -595,11 +475,11 @@ const composeEmail = async (req) => {
   }
 };
 
-const draftEmail = async (req) => {
+const saveDraft = async (req) => {
   const { message, to, subject, from } = req.body;
 
-  const findEmail = await ClientModel.findOne({id:req.params.emailId})
-  
+  const findEmail = await ClientModel.findOne({ id: req.params.emailId });
+
   // Compose the raw email data
   const data =
     `To: ${to}\n` +
@@ -644,6 +524,117 @@ const draftEmail = async (req) => {
   }
 };
 
+const updateDraft = async (req) => {
+  const { draftId, message, to, subject, from } = req.body;
+  const findEmail = await ClientModel.findOne({ id: req.params.emailId });
+  const data =
+    `To: ${to}\n` +
+    `Subject: ${subject}\n` +
+    `Content-Type: text/plain; charset=utf-8\n` +
+    `From: ${findEmail.email}\n\n` +
+    `${message}`;
+
+  const accessToken = await getAccessToken(req.params.emailId);
+
+  const url = `https://www.googleapis.com/gmail/v1/users/me/drafts/${draftId}`;
+  const requestBody = {
+    message: {
+      raw: Buffer.from(data)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, ""),
+    },
+  };
+
+  const config = {
+    method: "put",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: requestBody,
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating draft: ", error.message);
+    throw error;
+  }
+};
+
+const listDrafts = async (req) => {
+  const accessToken = await getAccessToken(req.params.emailId);
+  const url = `https://www.googleapis.com/gmail/v1/users/me/drafts`;
+
+  const config = {
+    method: "get",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data.drafts; // This will give you an array of draft objects
+  } catch (error) {
+    console.error("Error listing drafts: ", error.message);
+    throw error;
+  }
+};
+
+const getSingleDraft = async (req) => {
+  const accessToken = await getAccessToken(req.params.emailId);
+  const url = `https://www.googleapis.com/gmail/v1/users/me/drafts/${req.params.draftId}`;
+
+  const config = {
+    method: "get",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data; // Returns the draft data
+  } catch (error) {
+    console.error("Error fetching draft: ", error.message);
+    throw error;
+  }
+};
+
+const sendDraft = async (req) => {
+  const accessToken = await getAccessToken(req.params.emailId);
+  const url = `https://www.googleapis.com/gmail/v1/users/me/drafts/send`;
+
+  const requestBody = {
+    id: req.params.draftId,
+  };
+
+  const config = {
+    method: "post",
+    url: url,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    data: requestBody,
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data; // Email is sent, and draft is removed from drafts
+  } catch (error) {
+    console.error("Error sending draft: ", error.message);
+    throw error;
+  }
+};
 
 const getLabels = async (req) => {
   const accessToken = await getAccessToken();
@@ -932,7 +923,11 @@ module.exports = {
   readInboxContent,
   sendReply,
   composeEmail,
-  draftEmail,
+  saveDraft,
+  listDrafts,
+  sendDraft,
+  updateDraft,
+  getSingleDraft,
   getLabels,
   storeCompany,
   storeCompanyClients,
