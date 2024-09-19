@@ -897,15 +897,24 @@ const deleteLocalEmail = async (req) => {
     }
 
     // Update the isDeleted field to true for the specified email IDs
-    const deleteClients = await ClientModel.updateMany(
-      { _id: { $in: emailIds } },
-      { $set: { isDeleted: true } },
-      { new: true }
+    // const deleteClients = await ClientModel.updateMany(
+    //   { _id: { $in: emailIds } },
+    //   { $set: { isDeleted: true } },
+    //   { new: true }
+    // );
+     // Delete the specified email IDs
+     const deleteClients = await ClientModel.deleteMany(
+      { _id: { $in: emailIds } }
     );
 
     // Check if the update was successful
-    if (deleteClients.modifiedCount === 0) {
-      throw new Error("No emails were updated. Please check the provided IDs.");
+    // if (deleteClients.modifiedCount === 0) {
+    //   throw new Error("No emails were updated. Please check the provided IDs.");
+    // }
+
+    // Check if any emails were deleted
+    if (deleteClients.deletedCount === 0) {
+      throw new Error("No emails were deleted. Please check the provided IDs.");
     }
 
     return true;
