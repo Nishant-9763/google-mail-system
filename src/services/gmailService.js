@@ -25,6 +25,7 @@ const auth = async (req, res) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
+    prompt: "select_account",
   });
   return authUrl;
 };
@@ -351,7 +352,7 @@ const listMessages = async (
     access_token: accessToken,
     maxResults: maxResults, // Maximum number of messages per page
     pageToken: pageToken,
-    q: searchQuery, // Include the search query in the request
+    q: `/"${searchQuery}"/`, // Include the search query in the request
   };
 
   const config = {
