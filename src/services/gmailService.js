@@ -25,7 +25,7 @@ const auth = async (req, res) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
-    prompt: "select_account",
+    prompt: "consent", // select_account
   });
   return authUrl;
 };
