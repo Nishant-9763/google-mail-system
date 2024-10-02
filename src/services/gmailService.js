@@ -199,6 +199,31 @@ const searchGmail = async (searchItem) => {
   }
 };
 
+const getThread = async (threadId, accessToken) => {
+  const url = `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}`;
+
+  const params = {
+    access_token: accessToken,
+  };
+
+  const config = {
+    method: "get",
+    url: url,
+    params: params,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    console.error("Error listing messages: ", error.message);
+    throw error;
+  }
+};
+
 const readGmailContent = async (req, messageId, accessToken) => {
   if (!accessToken) {
     accessToken = await getAccessToken(req.params.emailId);
@@ -231,6 +256,12 @@ const readGmailContent = async (req, messageId, accessToken) => {
       subject,
     };
     singleMails.emailMetadata = emailMetadata;
+    // Fetch thread data
+    const threadId = singleMails.threadId; // Get thread ID from the message
+    const threadData = await getThread(threadId, accessToken); // Use the getThread function
+    if (threadData) {
+      singleMails.threadData = threadData;
+    }
     return singleMails;
   } catch (error) {
     console.error("Error reading Gmail content: ", error.message);
@@ -249,7 +280,14 @@ const readInboxContent = async (searchText) => {
 };
 
 const readAllMails = async (req, page = 1, pageSize = 10) => {
-  const { type = "all", search = "" } = req.query;
+  // const { type = "all", search = "" } = req.query;
+  const {
+    type = "all",
+    search = "",
+    subject = "",
+    to = "",
+    from = "",
+  } = req.query;
   let totalMessages = 0;
   let pageToken = null;
   let allMessages = [];
@@ -265,8 +303,11 @@ const readAllMails = async (req, page = 1, pageSize = 10) => {
       trash: " in:trash", // Fetch Trash messages (deleted emails)
       draft: " in:drafts", // Fetch Draft messages
     };
-    const searchQuery = search + (typeQueryMap[type] || "");
-
+    let searchQuery = search + (typeQueryMap[type] || "");
+    // Add specific field searches (subject, to, from) if provided
+    if (subject) searchQuery += ` subject:${subject}`;
+    if (to) searchQuery += ` to:${to}`;
+    if (from) searchQuery += ` from:${from}`;
     let fetchedMessages = [];
 
     // Fetch messages and apply pagination
@@ -903,10 +944,10 @@ const deleteLocalEmail = async (req) => {
     //   { $set: { isDeleted: true } },
     //   { new: true }
     // );
-     // Delete the specified email IDs
-     const deleteClients = await ClientModel.deleteMany(
-      { _id: { $in: emailIds } }
-    );
+    // Delete the specified email IDs
+    const deleteClients = await ClientModel.deleteMany({
+      _id: { $in: emailIds },
+    });
 
     // Check if the update was successful
     // if (deleteClients.modifiedCount === 0) {
