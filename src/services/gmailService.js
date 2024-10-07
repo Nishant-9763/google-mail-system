@@ -64,7 +64,7 @@ const oauth2callback = async (req, res) => {
 
 const getAccessToken = async (emailId) => {
   if (!emailId) {
-    return res.status(400).send("Refresh token is required");
+    return res.status(400).send("Emmai Id is required");
   }
   let tokenData = await getTokenFromDB(emailId);
 
@@ -414,28 +414,73 @@ const listMessages = async (
   }
 };
 
+// const sendReply = async (req) => {
+//   const { threadId, message, to, subject, from, cc, bcc } = req.body;
+  
+//   const accessToken = await getAccessToken(req.params.emailId);
+
+//   const data =
+//     `To: ${to}\n` +
+//     `Cc: ${cc}\n` +
+//     `Bcc: ${bcc}\n` +
+//     `Subject:  Re: ${subject}\n` +
+//     `Content-Type: text/plain; charset=utf-8\n` + // Change to text/html if sending HTML
+//     `From: ${from}\n` +
+//     // `In-Reply-To: <${req.body.inReplyTo}>\n` + // Optional: Add In-Reply-To header if replying
+//     // `References: <${req.body.references}>\n` + // Optional: Add References header if needed
+//     `\n` + // Add a newline before the message body
+//     `${message}`;
+
+//   const encodedMessage = Buffer.from(data)
+//     .toString("base64")
+//     .replace(/\+/g, "-")
+//     .replace(/\//g, "_")
+//     .replace(/=+$/, "");
+//     console.log("response============",encodedMessage);
+//   const url = `https://www.googleapis.com/gmail/v1/users/me/messages/send`;
+//   const requestBody = {
+//     raw: encodedMessage,
+//     threadId: threadId,
+//   };
+
+//   const config = {
+//     method: "post",
+//     url: url,
+//     headers: {
+//       Authorization: `Bearer ${accessToken}`,
+//       "Content-Type": "application/json",
+//     },
+//     data: requestBody,
+//   };
+
+//   try {
+//     const response = await axios(config);
+//     console.log("response=============",response.data);
+    
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error sending reply: ", error.message);
+//     throw error;
+//   }
+// };
+
 const sendReply = async (req) => {
   const { threadId, message, to, subject, from, cc, bcc } = req.body;
+  
   const accessToken = await getAccessToken(req.params.emailId);
-  // const data =
-  //   `To: ${to}\n` +
-  //   `Subject: ${subject}\n` +
-  //   `Content-Type: text/plain; charset=utf-8\n` +
-  //   `From: ${from}\n` +
-  //   `${message}`;
 
-  const data =
-    `To: ${to}\n` +
-    `Cc: ${cc}\n` +
-    `Bcc: ${bcc}\n` +
-    `Subject:  Re: ${subject}\n` +
-    `Content-Type: text/plain; charset=utf-8\n` + // Change to text/html if sending HTML
+  // Construct headers string
+  let data =
+    `To: ${to.join(", ")}\n` +
+    (cc && cc.length ? `Cc: ${cc.join(", ")}\n` : "") +  // Only add if cc exists
+    (bcc && bcc.length ? `Bcc: ${bcc.join(", ")}\n` : "") +  // Only add if bcc exists
+    `Subject: Re: ${subject}\n` +
+    `Content-Type: text/html; charset=utf-8\n` +  // Use text/html if sending HTML
     `From: ${from}\n` +
-    // `In-Reply-To: <${req.body.inReplyTo}>\n` + // Optional: Add In-Reply-To header if replying
-    // `References: <${req.body.references}>\n` + // Optional: Add References header if needed
     `\n` + // Add a newline before the message body
     `${message}`;
 
+  // Encode message to base64
   const encodedMessage = Buffer.from(data)
     .toString("base64")
     .replace(/\+/g, "-")
@@ -460,12 +505,15 @@ const sendReply = async (req) => {
 
   try {
     const response = await axios(config);
+    console.log("response=============", response.data);
+    
     return response.data;
   } catch (error) {
-    console.error("Error sending reply: ", error.message);
+    console.error("Error sending reply: ", error.response?.data || error.message);
     throw error;
   }
 };
+
 
 const composeEmail = async (req) => {
   const { message, to, subject, from } = req.body;
