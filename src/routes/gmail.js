@@ -4,11 +4,17 @@ const gmailController = require("../controllers/gmailController");
 
 router.get("/get-emails", gmailController.getemails);
 router.get("/:emailId/read-all-emails", gmailController.readAllMails);
-router.get("/:emailId/read-single-emails/:messageId", gmailController.readSingleMails);
+router.get(
+  "/:emailId/read-single-emails/:messageId",
+  gmailController.readSingleMails
+);
 router.post("/:emailId/reply-emails", gmailController.sendReply);
 router.post("/:emailId/forward-emails", gmailController.forwardMessage);
 router.post("/:emailId/delete-emails", gmailController.deleteEmails);
-router.post("/:emailId/mark-read-unread-emails", gmailController.markUnreadEmails);
+router.post(
+  "/:emailId/mark-read-unread-emails",
+  gmailController.markUnreadEmails
+);
 router.put("/:emailId/update-emails", gmailController.updateEmails);
 router.delete("/delete-emails", gmailController.deleteLocalEmail);
 router.get("/call-back", gmailController.genrateToken);
@@ -28,5 +34,11 @@ router.get("/labels", gmailController.getLabels);
 router.post("/company", gmailController.storeCompany);
 router.post("/company-client", gmailController.storeCompanyClients);
 router.get("/company-client/:id", gmailController.getCompanyClients);
+router.get(
+  "/:emailId/messages/:messageId/get-attachment/:attachmentId",
+  gmailController.getAttachment
+);
+
+router.get("/:emailId/proxy-image", gmailController.getProxyImage);
 
 module.exports = router;

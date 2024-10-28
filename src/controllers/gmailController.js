@@ -226,3 +226,26 @@ exports.oauth2callback = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getAttachment = async (req, res) => {
+  try {
+    const response = await gmailService.getAttachment(
+      req,
+      req.params.messageId,
+      req.params.attachmentId
+    );
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getProxyImage = async (req, res) => {
+  try {
+    const response = await gmailService.getProxyImage(req, res);
+
+    res.json({ data: response });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -416,7 +416,7 @@ const listMessages = async (
 
 // const sendReply = async (req) => {
 //   const { threadId, message, to, subject, from, cc, bcc } = req.body;
-  
+
 //   const accessToken = await getAccessToken(req.params.emailId);
 
 //   const data =
@@ -456,7 +456,7 @@ const listMessages = async (
 //   try {
 //     const response = await axios(config);
 //     console.log("response=============",response.data);
-    
+
 //     return response.data;
 //   } catch (error) {
 //     console.error("Error sending reply: ", error.message);
@@ -466,16 +466,16 @@ const listMessages = async (
 
 const sendReply = async (req) => {
   const { threadId, message, to, subject, from, cc, bcc } = req.body;
-  
+
   const accessToken = await getAccessToken(req.params.emailId);
 
   // Construct headers string
   let data =
     `To: ${to.join(", ")}\n` +
-    (cc && cc.length ? `Cc: ${cc.join(", ")}\n` : "") +  // Only add if cc exists
-    (bcc && bcc.length ? `Bcc: ${bcc.join(", ")}\n` : "") +  // Only add if bcc exists
+    (cc && cc.length ? `Cc: ${cc.join(", ")}\n` : "") + // Only add if cc exists
+    (bcc && bcc.length ? `Bcc: ${bcc.join(", ")}\n` : "") + // Only add if bcc exists
     `Subject: Re: ${subject}\n` +
-    `Content-Type: text/html; charset=utf-8\n` +  // Use text/html if sending HTML
+    `Content-Type: text/html; charset=utf-8\n` + // Use text/html if sending HTML
     `From: ${from}\n` +
     `\n` + // Add a newline before the message body
     `${message}`;
@@ -506,14 +506,16 @@ const sendReply = async (req) => {
   try {
     const response = await axios(config);
     console.log("response=============", response.data);
-    
+
     return response.data;
   } catch (error) {
-    console.error("Error sending reply: ", error.response?.data || error.message);
+    console.error(
+      "Error sending reply: ",
+      error.response?.data || error.message
+    );
     throw error;
   }
 };
-
 
 const composeEmail = async (req) => {
   const { message, to, subject, from } = req.body;
@@ -894,7 +896,7 @@ const markUnreadEmails = async (req) => {
 };
 
 const forwardMessage = async (req) => {
-  const { messageId, to, subject, from } = req.body;
+  const { messageId, to, subject, from, body } = req.body;
   const accessToken = await getAccessToken(req.params.emailId);
   // Fetch the original message content
   const originalMessageResponse = await axios.get(
@@ -1013,9 +1015,68 @@ const deleteLocalEmail = async (req) => {
   }
 };
 
+const getAttachment = async (req, messageId, attachmentId, accessToken) => {
+  if (!accessToken) {
+    accessToken = await getAccessToken(req.params.emailId);
+  }
+  const config = {
+    method: "get",
+    url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    console.error("Error reading Gmail content: ", error.message);
+    throw error;
+  }
+};
+
+const getProxyImage = async (req, res) => {
+  console.log("omggg");
+  try {
+    const { imageUrl } = req.query;
+    const { emailId } = req.params;
+    console.log("omggg", 22);
+
+    // Get the user's access token
+    const accessToken = await getAccessToken(emailId);
+
+    console.log({ accessToken });
+
+    const response = await axios.get(decodeURIComponent(imageUrl), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      responseType: "stream",
+    });
+
+    // Forward the content type
+    res.set("Content-Type", response.headers["content-type"]);
+
+    response.data.on("error", (error) => {
+      console.error("Error reading the stream:", error);
+      res.end(); // End the response if an error occurs in the stream
+    });
+
+    response.data.pipe(res).on("finish", () => {
+      res.end(); // End the response once the piping is complete
+    });
+    // Pipe the image data
+    response.data.pipe(res);
+  } catch (error) {
+    console.error("Error proxying image:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   // getAccessToken,
   searchGmail,
+
   readAllMails,
   listMessages,
   readGmailContent,
@@ -1040,4 +1101,6 @@ module.exports = {
   // genrateToken,
   auth,
   oauth2callback,
+  getAttachment,
+  getProxyImage,
 };
